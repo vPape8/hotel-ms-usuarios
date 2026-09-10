@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/userController';
 import { createDatabasePool } from '../config/database';
-import { azureAuthMiddleware, cognitoAuthMiddleware } from '../middlewares/authMiddleware';
+import { azureAuth } from '../middlewares/azureAuth';
+import { cognitoAuthMiddleware } from '../middlewares/authMiddleware';
 import { MySqlUserRepository, UserService } from '../services/userService';
 
 export function createUserRoutes(service = new UserService(new MySqlUserRepository(createDatabasePool()))): Router {
@@ -10,7 +11,7 @@ export function createUserRoutes(service = new UserService(new MySqlUserReposito
 	const adminRoutes = Router();
 	const guestRoutes = Router();
 
-	adminRoutes.use(azureAuthMiddleware);
+	adminRoutes.use(azureAuth);
 	adminRoutes.get('/', controller.listAdmins);
 	adminRoutes.get('/:id', controller.getAdmin);
 	adminRoutes.post('/', controller.createAdmin);
