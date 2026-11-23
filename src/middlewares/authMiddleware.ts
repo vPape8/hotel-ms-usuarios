@@ -19,7 +19,10 @@ function bearerToken(request: Request): string | undefined {
 
 async function validateToken(request: Request, response: Response, next: NextFunction, options: {
 	issuer: string;
-	audience: string;
+	/** Entra ID: el access token trae "aud". */
+	audience?: string;
+	/** Cognito: el access token no trae "aud"; el app client viene en "client_id". */
+	clientId?: string;
 	jwksUri: string;
 }): Promise<void> {
 	const token = bearerToken(request);
@@ -31,8 +34,12 @@ async function validateToken(request: Request, response: Response, next: NextFun
 	try {
 		const { payload } = await jwtVerify(token, getJwks(options.jwksUri), {
 			issuer: options.issuer,
-			audience: options.audience
+			...(options.audience ? { audience: options.audience } : {})
 		});
+		if (options.clientId && (payload.token_use !== 'access' || payload.client_id !== options.clientId)) {
+			response.status(401).json({ error: 'TOKEN_INVALIDO' });
+			return;
+		}
 		request.user = payload;
 		next();
 	} catch {
@@ -55,12 +62,13 @@ export function azureAuthMiddleware(request: Request, response: Response, next: 
 
 export function cognitoAuthMiddleware(request: Request, response: Response, next: NextFunction): void {
 	const issuer = process.env.COGNITO_ISSUER;
-	const audience = process.env.COGNITO_CLIENT_ID;
-	if (!issuer || !audience) {
+	const clientId = process.env.COGNITO_CLIENT_ID;
+	if (!issuer || !clientId) {
 		response.status(500).json({ error: 'AUTENTICACION_COGNITO_NO_CONFIGURADA' });
 		return;
 	}
 
+	// Se valida el access token (el que el frontend manda como Bearer), igual que hotel-ms-reservas.
 	const jwksUri = process.env.COGNITO_JWKS_URI ?? `${issuer.replace(/\/$/, '')}/.well-known/jwks.json`;
-	void validateToken(request, response, next, { issuer, audience, jwksUri });
+	void validateToken(request, response, next, { issuer, clientId, jwksUri });
 }
